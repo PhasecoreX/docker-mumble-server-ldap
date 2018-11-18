@@ -13,7 +13,7 @@ RUN set -ex; \
     apt-get update; \
     apt-get install -y --no-install-recommends $buildDeps; \
     \
-    apt-key adv --keyserver keyserver.ubuntu.com --recv B6391CB2CFBA643D; \
+    apt-key adv --batch --keyserver keyserver.ubuntu.com --recv B6391CB2CFBA643D; \
     apt-add-repository "deb http://zeroc.com/download/Ice/3.7/debian9 stable main"; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
