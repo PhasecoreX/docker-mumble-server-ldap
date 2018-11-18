@@ -86,12 +86,12 @@ Simply run it like so:
 ```
 docker run -p 64738:64738 -v /local/folder/for/config/files:/config -v /local/folder/for/persistence:/data -e TZ=America/Detroit -e PUID=1000 phasecorex/mumble-server-ldap
 ```
-`-p 64738:64738` is the Mumble server port
-`-v /local/folder/for/config/files:/config` is the folder where you kept those two config files you modified.
-`-v /local/folder/for/persistence:/data` is to persist data.
-`-e TZ=America/Detroit` is to specify a timezone.
-`-e PUID=1000` is to specify the user this server will run as. All files it creates will be owned by this user on the host.
-`-e PGID=1000` can also be specified if you want a specific group. If not specified, the PGID will be used as the group.
+- `-p 64738:64738`: Mumble server port
+- `-v /local/folder/for/config/files:/config`: Folder where you kept those two config files you modified.
+- `-v /local/folder/for/persistence:/data`: Folder to persist data.
+- `-e TZ=America/Detroit`: Specify a timezone.
+- `-e PUID=1000`: Specify the user this server will run as. All files it creates will be owned by this user on the host.
+- `-e PGID=1000`: Can also be specified if you want a specific group. If not specified, the PGID will be used as the group.
 
 You will have to somehow link this container to your LDAP server. That can either be by linking the containers, adding this to a docker-compose file, or running this Mumble server as a host container and hitting a locally installed LDAP server.
 
