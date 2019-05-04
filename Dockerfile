@@ -1,7 +1,5 @@
 FROM phasecorex/user-python:2.7-slim
 
-MAINTAINER Ryan Foster <phasecorex@gmail.com>
-
 RUN set -ex; \
     \
     buildDeps=' \
@@ -35,3 +33,5 @@ VOLUME ["/data", "/config"]
 EXPOSE 64738
 
 CMD ["/usr/bin/supervisord"]
+
+LABEL maintainer="Ryan Foster <phasecorex@gmail.com>"
