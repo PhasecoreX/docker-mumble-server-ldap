@@ -24,7 +24,7 @@ RUN set -ex; \
         zeroc-ice-slice \
     ; \
     # clean up
-    apt-get purge -y --auto-remove $fetchDeps; \
+    apt-get purge -y --auto-remove $buildDeps; \
     rm -rf /var/lib/apt/lists/*
 
 COPY root/ /
