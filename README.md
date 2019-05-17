@@ -1,6 +1,8 @@
 # Mumble Server LDAP
 A Mumble Server container with support for an LDAP back-end
 
+[![Donate to support my code](https://img.shields.io/badge/Paypal-Donate-blue.svg)](https://paypal.me/pcx)
+
 ## Some Initial Thoughts
 Mumble is great, except for the fact that a Mumble server by default is wide open to the internet, allowing anyone to join and waste your bandwidth. There are things called authenticators that check a users name and password against some sort of a back-end database. This image combines the Mumble server with an LDAP authenticator.
 
