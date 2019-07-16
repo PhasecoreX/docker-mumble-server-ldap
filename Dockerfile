@@ -1,12 +1,11 @@
 FROM phasecorex/user-python:2.7-slim
 
-RUN set -ex; \
+RUN set -eux; \
     \
     buildDeps=' \
         dirmngr \
         gnupg2 \
         software-properties-common \
-        
     '; \
     apt-get update; \
     apt-get install -y --no-install-recommends $buildDeps; \
@@ -16,7 +15,7 @@ RUN set -ex; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         # https://bugs.launchpad.net/ubuntu/+source/mumble/+bug/1782980
-        libssl1.0-dev \
+        libssl-dev \
         mumble-server \
         supervisor \
         python-zeroc-ice \
@@ -32,6 +31,6 @@ COPY root/ /
 VOLUME ["/data", "/config"]
 EXPOSE 64738
 
-CMD ["/usr/bin/supervisord"]
+CMD ["supervisord"]
 
 LABEL maintainer="Ryan Foster <phasecorex@gmail.com>"
