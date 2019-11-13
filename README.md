@@ -1,6 +1,9 @@
 # Mumble Server LDAP
 A Mumble Server container with support for an LDAP back-end
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/phasecorex/mumble-server-ldap)](https://hub.docker.com/r/phasecorex/mumble-server-ldap)
+[![Image Size](https://images.microbadger.com/badges/image/phasecorex/mumble-server-ldap.svg)](https://microbadger.com/images/phasecorex/mumble-server-ldap)
+[![Build Status](https://img.shields.io/docker/build/phasecorex/mumble-server-ldap)](https://hub.docker.com/r/phasecorex/mumble-server-ldap)
 [![Donate to support my code](https://img.shields.io/badge/Paypal-Donate-blue.svg)](https://paypal.me/pcx)
 
 ## Some Initial Thoughts
