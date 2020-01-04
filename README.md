@@ -86,12 +86,14 @@ userpassword: {SSHA}R2OQaUpaUQNafw28LU1u3wwrCZ6QOBXk
 
 If you need even more help, check the authenticator itself at `/root/opt/LDAPauth/LDAPauth.py`. It has a nice LDAP layout and helpful hints.
 
+A really cool neat thing I worked on for an entire Saturday was to remove the RoomNumber requirement in LDAP (and also to convert this whole thing to Python3). Simply setting `number_attr` to "entryUUID" in the config file will enable this feature. This will map everyones unique IDs in LDAP into a unique incrementing Mumble ID. When setting this, you will see an extra file `entryuuid.map` show up in the same directory as your `LDAPauth.ini` file. This file is what saves all the mappings between LDAP users and Mumble users, so don't ever modify it or lose it. If you can't handle that, just use "RoomNumber" and specify a room number for each user in LDAP.
+
 ## How to Run
 Simply run it like so:
 ```
-docker run -p 64738:64738 -v /local/folder/for/config/files:/config -v /local/folder/for/persistence:/data -e TZ=America/Detroit -e PUID=1000 phasecorex/mumble-server-ldap
+docker run -p 64738:64738/tcp -p 64738:64738/udp -v /local/folder/for/config/files:/config -v /local/folder/for/persistence:/data -e TZ=America/Detroit -e PUID=1000 phasecorex/mumble-server-ldap
 ```
-- `-p 64738:64738`: Mumble server port
+- `-p 64738:64738/tcp -p 64738:64738/udp`: Mumble server port (both TCP and UDP)
 - `-v /local/folder/for/config/files:/config`: Folder where you kept those two config files you modified.
 - `-v /local/folder/for/persistence:/data`: Folder to persist data.
 - `-e TZ=America/Detroit`: Specify a timezone.
