@@ -1,5 +1,5 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env sh
+set -euf
 
 # Set database location
 sed -i '/database=/c\database=/data/mumble-server.sqlite' /config/mumble-server.ini
