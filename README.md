@@ -4,7 +4,8 @@ A Mumble Server container with support for an LDAP back-end
 [![Docker Pulls](https://img.shields.io/docker/pulls/phasecorex/mumble-server-ldap)](https://hub.docker.com/r/phasecorex/mumble-server-ldap)
 [![Image Size](https://images.microbadger.com/badges/image/phasecorex/mumble-server-ldap.svg)](https://microbadger.com/images/phasecorex/mumble-server-ldap)
 [![Build Status](https://img.shields.io/docker/build/phasecorex/mumble-server-ldap)](https://hub.docker.com/r/phasecorex/mumble-server-ldap)
-[![Donate to support my code](https://img.shields.io/badge/Paypal-Donate-blue.svg)](https://paypal.me/pcx)
+[![BuyMeACoffee](https://img.shields.io/badge/buy%20me%20a%20coffee-donate-orange)](https://buymeacoff.ee/phasecorex)
+[![PayPal](https://img.shields.io/badge/paypal-donate-blue)](https://paypal.me/pcx)
 
 ## Some Initial Thoughts
 Mumble is great, except for the fact that a Mumble server by default is wide open to the internet, allowing anyone to join and waste your bandwidth. There are things called authenticators that check a users name and password against some sort of a back-end database. This image combines the Mumble server with an LDAP authenticator.
