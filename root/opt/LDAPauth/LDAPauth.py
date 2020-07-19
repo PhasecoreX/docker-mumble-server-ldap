@@ -144,6 +144,7 @@ default = {
         ("provide_users", x2bool, False),
         ("use_start_tls", x2bool, False),
     ),
+    "group_map": None,
     "user": (
         ("id_offset", int, 1000000000),
         ("reject_on_error", x2bool, True),
@@ -592,6 +593,23 @@ def do_main_program():
                     debug("User " + name + " failed with no group membership")
                     return (AUTH_REFUSED, None, None)
 
+            # Check for Murmur <- LDAP group mappings
+            groups_to_grant = []
+            for murmurGroup, ldapGroupDN in cfg.group_map:
+                debug("Checking group membership of " + ldapGroupDN + " for " + name)
+
+                # Search for the user in each group
+                res = ldap_conn.search_s(
+                    ldapGroupDN,
+                    ldap.SCOPE_SUBTREE,
+                    "(%s=%s)" % (cfg.ldap.group_attr, user_dn),
+                    [cfg.ldap.number_attr, cfg.ldap.display_attr]
+                )
+
+                if len(res) >= 1:
+                    debug("User " + name + " is a member of " + ldapGroupDN + ", granting Murmur gruop " + murmurGroup)
+                    groups_to_grant.append(murmurGroup)
+
             # Second bind to test user credentials if using bind_dn or discover_dn.
             if cfg.ldap.bind_dn or cfg.ldap.discover_dn:
                 # Prevent anonymous authentication.
@@ -615,7 +633,7 @@ def do_main_program():
             # Add the user/id combo to cache, then accept:
             self.name_uid_cache[displayName] = uid
             debug("Login accepted for " + name)
-            return (uid + cfg.user.id_offset, displayName, [])
+            return (uid + cfg.user.id_offset, displayName, groups_to_grant)
 
         @fortifyIceFu((False, None))
         @checkSecret
