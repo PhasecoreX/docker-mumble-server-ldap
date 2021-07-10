@@ -104,6 +104,7 @@
 import configparser
 import logging
 import os
+import re
 import sys
 from logging import critical, debug, error, exception, getLogger, info, warning
 from optparse import OptionParser
@@ -136,6 +137,7 @@ default = {
         ("discover_dn", x2bool, True),
         ("username_attr", str, "uid"),
         ("number_attr", str, "RoomNumber"),
+        ("do_number_attr_mapping", x2bool, False),
         ("display_attr", str, "displayName"),
         ("group_cn", str, "ou=Groups,dc=example,dc=org"),
         ("group_attr", str, "member"),
@@ -168,7 +170,8 @@ default = {
     ),
     "log": (("level", int, logging.INFO), ("file", str, "")),
 }
-entry_uuid_mapping = []
+number_attr_mapping = {}
+mapping_regex = re.compile(r"^(\d+):(.+)$")
 
 
 #
@@ -219,21 +222,40 @@ def do_main_program():
     Ice.loadSlice("", slicedir + [cfg.ice.slice])
     import Murmur
 
-    # If we are using entryUUID, create a entryUUID mapping file
-    if cfg.ldap.number_attr == "entryUUID":
+    # Legacy entryUUID mapping support
+    if cfg.ldap.number_attr.lower() == "entryuuid":
+        cfg.ldap.do_number_attr_mapping = True
+
+    # If we are mapping the number_attr, create/load the mapping file
+    if cfg.ldap.do_number_attr_mapping:
         head, tail = os.path.split(cfgfile)
-        mapper_file = "entryuuid.map"
+        mapper_file = f"{cfg.ldap.number_attr.lower()}.map"
         if head:
             mapper_file = "{}/{}".format(head, mapper_file)
-        info("Using entryUUID mapping file '{}'".format(mapper_file))
+        info(f"Using {cfg.ldap.number_attr} mapping file '{mapper_file}'")
         try:
+            mapping_format_version = 0
             with open(mapper_file, "r") as filehandle:
                 for line in filehandle:
-                    if not line.startswith("#"):
-                        entry_uuid_mapping.append(line.strip())
+                    if line.startswith("#"):
+                        continue
+                    if not mapping_format_version:
+                        mapping_format_version = 2 if mapping_regex.search(line) else 1
+                    if mapping_format_version == 1:
+                        number_attr_mapping[line.strip()] = (
+                            max(number_attr_mapping.values()) + 1
+                            if number_attr_mapping
+                            else 1
+                        )
+                    elif mapping_format_version == 2:
+                        reg_result = mapping_regex.search(line)
+                        if reg_result:
+                            number_attr_mapping[reg_result[2].strip()] = int(
+                                reg_result[1]
+                            )
         except FileNotFoundError:
             pass
-        info("Imported {} user mappings".format(len(entry_uuid_mapping)))
+        info("Imported {} user mappings".format(len(number_attr_mapping)))
 
     class LDAPAuthenticatorApp(Ice.Application):
         def run(self, args):
@@ -492,7 +514,7 @@ def do_main_program():
             # SuperUser is a special login.
             if name == "SuperUser":
                 debug("Forced fall through for SuperUser")
-                return (FALL_THROUGH, None, None)
+                return FALL_THROUGH, None, None
 
             # Otherwise, let's check the LDAP server.
             uid = None
@@ -515,7 +537,7 @@ def do_main_program():
                     ldap_conn.start_tls_s()
                 except Exception as e:
                     warning("could not initiate StartTLS, e = " + str(e))
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
 
             if cfg.ldap.bind_dn:
                 # Bind the functional account to search the directory.
@@ -524,34 +546,34 @@ def do_main_program():
                 try:
                     debug("try to connect to ldap (bind_dn will be used)")
                     ldap_conn.bind_s(bind_dn, bind_pass)
-                except ldap.INVALID_CREDENTIALS:
+                except (ldap.INVALID_CREDENTIALS, ldap.INSUFFICIENT_ACCESS):
                     ldap_conn.unbind()
                     warning("Invalid credentials for bind_dn=" + bind_dn)
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
             elif cfg.ldap.discover_dn:
                 # Use anonymous bind to discover the DN
                 try:
                     ldap_conn.bind_s()
-                except ldap.INVALID_CREDENTIALS:
+                except (ldap.INVALID_CREDENTIALS, ldap.INSUFFICIENT_ACCESS):
                     ldap_conn.unbind()
-                    warning("Failed anomymous bind for discovering DN")
-                    return (AUTH_REFUSED, None, None)
+                    warning("Failed anonymous bind for discovering DN")
+                    return AUTH_REFUSED, None, None
 
             else:
                 # Prevent anonymous authentication.
                 if not pw:
                     warning("No password supplied for user " + name)
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
 
                 # Bind the user account to search the directory.
                 bind_dn = "%s=%s,%s" % (cfg.ldap.username_attr, name, cfg.ldap.users_dn)
                 bind_pass = pw
                 try:
                     ldap_conn.bind_s(bind_dn, bind_pass)
-                except ldap.INVALID_CREDENTIALS:
+                except (ldap.INVALID_CREDENTIALS, ldap.INSUFFICIENT_ACCESS):
                     ldap_conn.unbind()
                     warning("User " + name + " failed with invalid credentials")
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
 
             # Search for the user.
             res = ldap_conn.search_s(
@@ -563,9 +585,9 @@ def do_main_program():
             if len(res) == 0:
                 warning("User " + name + " not found")
                 if cfg.user.reject_on_miss:
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
                 else:
-                    return (FALL_THROUGH, None, None)
+                    return FALL_THROUGH, None, None
             match = res[
                 0
             ]  # Only interested in the first result, as there should only be one match
@@ -574,7 +596,9 @@ def do_main_program():
             uid = self.getMumbleID(match[1][cfg.ldap.number_attr][0])
             displayName = match[1][cfg.ldap.display_attr][0].decode("UTF-8")
             user_dn = match[0]
-            debug("User match found, display '" + displayName + "' with UID " + repr(uid))
+            debug(
+                "User match found, display '" + displayName + "' with UID " + repr(uid)
+            )
 
             # Optionally check groups.
             if cfg.ldap.group_cn != "":
@@ -591,7 +615,7 @@ def do_main_program():
                 # Check if the user is a member of the group
                 if len(res) < 1:
                     debug("User " + name + " failed with no group membership")
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
 
             # Check for Murmur <- LDAP group mappings
             groups_to_grant = []
@@ -603,11 +627,18 @@ def do_main_program():
                     ldapGroupDN,
                     ldap.SCOPE_SUBTREE,
                     "(%s=%s)" % (cfg.ldap.group_attr, user_dn),
-                    [cfg.ldap.number_attr, cfg.ldap.display_attr]
+                    [cfg.ldap.number_attr, cfg.ldap.display_attr],
                 )
 
                 if len(res) >= 1:
-                    debug("User " + name + " is a member of " + ldapGroupDN + ", granting Murmur gruop " + murmurGroup)
+                    debug(
+                        "User "
+                        + name
+                        + " is a member of "
+                        + ldapGroupDN
+                        + ", granting Murmur group "
+                        + murmurGroup
+                    )
                     groups_to_grant.append(murmurGroup)
 
             # Second bind to test user credentials if using bind_dn or discover_dn.
@@ -615,16 +646,16 @@ def do_main_program():
                 # Prevent anonymous authentication.
                 if not pw:
                     warning("No password supplied for user " + name)
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
 
                 bind_dn = user_dn
                 bind_pass = pw
                 try:
                     ldap_conn.bind_s(bind_dn, bind_pass)
-                except ldap.INVALID_CREDENTIALS:
+                except (ldap.INVALID_CREDENTIALS, ldap.INSUFFICIENT_ACCESS):
                     ldap_conn.unbind()
                     warning("User " + name + " failed with wrong password")
-                    return (AUTH_REFUSED, None, None)
+                    return AUTH_REFUSED, None, None
 
             # Unbind and close connection.
             ldap_conn.unbind()
@@ -633,7 +664,7 @@ def do_main_program():
             # Add the user/id combo to cache, then accept:
             self.name_uid_cache[displayName] = uid
             debug("Login accepted for " + name)
-            return (uid + cfg.user.id_offset, displayName, groups_to_grant)
+            return uid + cfg.user.id_offset, displayName, groups_to_grant
 
         @fortifyIceFu((False, None))
         @checkSecret
@@ -645,7 +676,7 @@ def do_main_program():
             if not cfg.ldap.provide_info:
                 # We do not expose any additional information so always fall through
                 debug("getInfo for %d -> denied", id)
-                return (False, None)
+                return False, None
 
             ldap_conn = ldap.initialize(cfg.ldap.ldap_uri, 0)
 
@@ -674,10 +705,10 @@ def do_main_program():
                     ].decode("UTF-8")
 
                 debug("getInfo %s -> %s", name, repr(info))
-                return (True, info)
+                return True, info
             else:
                 debug("getInfo %s -> ?", name)
-                return (False, None)
+                return False, None
 
         @fortifyIceFu(-2)
         @checkSecret
@@ -743,7 +774,7 @@ def do_main_program():
             for name, uid in self.name_uid_cache.items():
                 if uid == ldapid:
                     if name == "SuperUser":
-                        debug("idToName %d -> 'SuperUser' catched", id)
+                        debug("idToName %d -> 'SuperUser' caught", id)
                         return FALL_THROUGH
 
                     debug("idToName %d -> '%s'", id, name)
@@ -867,20 +898,26 @@ def do_main_program():
             """
             Gets the Mumble User ID for a given number_attr
             number_attr will be converted to an int
-            If number_attr is an entryUUID, this will take care of mapping it
+            If do_number_attr_mapping is True, this will take care of mapping it
             """
-            if cfg.ldap.number_attr == "entryUUID":
-                entry_uuid = number_attr.decode("UTF-8")
-                if entry_uuid not in entry_uuid_mapping:
-                    entry_uuid_mapping.append(entry_uuid)
+            if cfg.ldap.do_number_attr_mapping:
+                decoded_number_attr = number_attr.decode("UTF-8")
+                if decoded_number_attr not in number_attr_mapping:
+                    number_attr_mapping[decoded_number_attr] = (
+                        max(number_attr_mapping.values()) + 1
+                        if number_attr_mapping
+                        else 1
+                    )
                     with open(mapper_file, "w") as filehandle:
                         filehandle.write(
-                            "# DO NOT MODIFY THIS FILE! Changing anything here will mess up your Mumble permissions!\n"
+                            "# DO NOT MODIFY THIS FILE! Changing anything here could mess up your Mumble permissions!\n"
                         )
-                        for listitem in entry_uuid_mapping:
-                            filehandle.write("{}\n".format(listitem))
-                mumble_id = entry_uuid_mapping.index(entry_uuid) + 1
-                debug("Mapping entryUUID '{}' -> '{}'".format(entry_uuid, mumble_id))
+                        for ldap_value, mumble_id in number_attr_mapping.items():
+                            filehandle.write(f"{mumble_id}:{ldap_value}\n")
+                mumble_id = number_attr_mapping[decoded_number_attr]
+                debug(
+                    f"Mapping {cfg.ldap.number_attr}: LDAP={decoded_number_attr} -> Mumble={mumble_id}"
+                )
                 return mumble_id
             else:
                 return int(number_attr)
