@@ -297,12 +297,12 @@ def do_main_program():
 
             info("Connecting to Ice server (%s:%d)", cfg.ice.host, cfg.ice.port)
             base = ice.stringToProxy(
-                "Meta:tcp -h %s -p %d" % (cfg.ice.host, cfg.ice.port)
+                f"Meta:tcp -h {cfg.ice.host} -p {cfg.ice.port:d}"
             )
             self.meta = Murmur.MetaPrx.uncheckedCast(base)
 
             adapter = ice.createObjectAdapterWithEndpoints(
-                "Callback.Client", "tcp -h %s" % cfg.ice.host
+                "Callback.Client", f"tcp -h {cfg.ice.host}"
             )
             adapter.activate()
 
@@ -566,7 +566,7 @@ def do_main_program():
                     return AUTH_REFUSED, None, None
 
                 # Bind the user account to search the directory.
-                bind_dn = "%s=%s,%s" % (cfg.ldap.username_attr, name, cfg.ldap.users_dn)
+                bind_dn = f"{cfg.ldap.username_attr}={name},{cfg.ldap.users_dn}"
                 bind_pass = pw
                 try:
                     ldap_conn.bind_s(bind_dn, bind_pass)
@@ -579,7 +579,7 @@ def do_main_program():
             res = ldap_conn.search_s(
                 cfg.ldap.users_dn,
                 ldap.SCOPE_SUBTREE,
-                "(%s=%s)" % (cfg.ldap.username_attr, name),
+                f"({cfg.ldap.username_attr}={name})",
                 [cfg.ldap.number_attr, cfg.ldap.display_attr],
             )
             if len(res) == 0:
@@ -605,12 +605,20 @@ def do_main_program():
                 debug("Checking group membership for " + name)
 
                 # Search for user in group
-                res = ldap_conn.search_s(
-                    cfg.ldap.group_cn,
-                    ldap.SCOPE_SUBTREE,
-                    "(%s=%s)" % (cfg.ldap.group_attr, user_dn),
-                    [cfg.ldap.number_attr, cfg.ldap.display_attr],
-                )
+                if cfg.ldap.group_attr.lower() == "memberof":
+                    res = ldap_conn.search_s(
+                        user_dn,
+                        ldap.SCOPE_SUBTREE,
+                        f"({cfg.ldap.group_attr}={cfg.ldap.group_cn})",
+                        [cfg.ldap.number_attr, cfg.ldap.display_attr],
+                    )
+                else:
+                    res = ldap_conn.search_s(
+                        cfg.ldap.group_cn,
+                        ldap.SCOPE_SUBTREE,
+                        f"({cfg.ldap.group_attr}={user_dn})",
+                        [cfg.ldap.number_attr, cfg.ldap.display_attr],
+                    )
 
                 # Check if the user is a member of the group
                 if len(res) < 1:
@@ -623,12 +631,20 @@ def do_main_program():
                 debug("Checking group membership of " + ldapGroupDN + " for " + name)
 
                 # Search for the user in each group
-                res = ldap_conn.search_s(
-                    ldapGroupDN,
-                    ldap.SCOPE_SUBTREE,
-                    "(%s=%s)" % (cfg.ldap.group_attr, user_dn),
-                    [cfg.ldap.number_attr, cfg.ldap.display_attr],
-                )
+                if cfg.ldap.group_attr.lower() == "memberof":
+                    res = ldap_conn.search_s(
+                        user_dn,
+                        ldap.SCOPE_SUBTREE,
+                        f"({cfg.ldap.group_attr}={ldapGroupDN})",
+                        [cfg.ldap.number_attr, cfg.ldap.display_attr],
+                    )
+                else:
+                    res = ldap_conn.search_s(
+                        ldapGroupDN,
+                        ldap.SCOPE_SUBTREE,
+                        f"({cfg.ldap.group_attr}={user_dn})",
+                        [cfg.ldap.number_attr, cfg.ldap.display_attr],
+                    )
 
                 if len(res) >= 1:
                     debug(
@@ -691,7 +707,7 @@ def do_main_program():
             res = ldap_conn.search_s(
                 cfg.ldap.users_dn,
                 ldap.SCOPE_SUBTREE,
-                "(%s=%s)" % (cfg.ldap.display_attr, name),
+                f"({cfg.ldap.display_attr}={name})",
                 [cfg.ldap.display_attr, cfg.ldap.mail_attr],
             )
 
@@ -738,7 +754,7 @@ def do_main_program():
             res = ldap_conn.search_s(
                 cfg.ldap.users_dn,
                 ldap.SCOPE_SUBTREE,
-                "(%s=%s)" % (cfg.ldap.display_attr, name),
+                f"({cfg.ldap.display_attr}={name})",
                 [cfg.ldap.number_attr],
             )
 
@@ -844,7 +860,7 @@ def do_main_program():
                 res = ldap_conn.search_s(
                     cfg.ldap.users_dn,
                     ldap.SCOPE_SUBTREE,
-                    "(&(uid=*)(%s=*%s*))" % (cfg.ldap.display_attr, filter),
+                    f"(&(uid=*)({cfg.ldap.display_attr}=*{filter}*))",
                     [cfg.ldap.number_attr, cfg.ldap.display_attr],
                 )
             else:
@@ -1010,7 +1026,7 @@ if __name__ == "__main__":
         cfgfile = option.ini
     except Exception:
         print(
-            "Fatal error, could not load config file from '%s'" % cfgfile,
+            f"Fatal error, could not load config file from '{cfgfile}'",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -1022,7 +1038,7 @@ if __name__ == "__main__":
         except IOError:
             # print>>sys.stderr, str(e)
             print(
-                "Fatal error, could not open logfile '%s'" % cfg.log.file,
+                f"Fatal error, could not open logfile '{cfg.log.file}'",
                 file=sys.stderr,
             )
             sys.exit(1)
